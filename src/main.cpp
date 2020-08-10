@@ -28,7 +28,7 @@ char dirToMask(int dir) {
 void setup() {
   Serial.begin(115200);
   Serial.println("ESP32 Tile controller test");
-  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
   pinMode(22, OUTPUT); //DET pin on controller
   digitalWrite(22, HIGH);
 
