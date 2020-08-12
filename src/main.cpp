@@ -28,9 +28,12 @@ char dirToMask(int dir) {
 }
 
 void setup() {
+  delay(2000);
   Serial.begin(115200);
-  while(!Serial.available()) {} //wait for a byte from serial to start
   Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
+  Serial2.write(0xFF);
+  Serial2.write(0x0A);
+  delay(50);
   pinMode(22, OUTPUT);
   digitalWrite(22, LOW);
   char longID[3];
@@ -49,9 +52,9 @@ void setup() {
     int currentShortID = tile_shortid;
 
     setEdge(currentlyExploring, 0x01);
-    delay(10);
+    delay(50);
     if(getLongIDOfSelectedTile(longID) == true) {
-      Serial.printf("Found tile %X%X%X%X attached on side A of tile %X\n", longID[0], longID[1], longID[2], longID[3], currentShortID);
+      Serial.printf("Found tile %X%X%X%X attached on side A of tile %i\n", longID[0], longID[1], longID[2], longID[3], currentShortID);
       tile_longids[tile_shortid-1][0] = longID[0];
       tile_longids[tile_shortid-1][1] = longID[1];
       tile_longids[tile_shortid-1][2] = longID[2];
@@ -65,9 +68,9 @@ void setup() {
     }
 
     setEdge(currentlyExploring, 0x02);
-    delay(10);
+    delay(50);
     if(getLongIDOfSelectedTile(longID) == true) {
-      Serial.printf("Found tile %X%X%X%X attached on side B of tile %X\n", longID[0], longID[1], longID[2], longID[3], currentShortID);
+      Serial.printf("Found tile %X%X%X%X attached on side B of tile %i\n", longID[0], longID[1], longID[2], longID[3], currentShortID);
       tile_longids[tile_shortid-1][0] = longID[0];
       tile_longids[tile_shortid-1][1] = longID[1];
       tile_longids[tile_shortid-1][2] = longID[2];
@@ -81,7 +84,7 @@ void setup() {
     }
 
     setEdge(currentlyExploring, 0x04);
-    delay(10);
+    delay(50);
     if(getLongIDOfSelectedTile(longID) == true) {
       Serial.printf("Found tile %X%X%X%X attached on side C of tile %X\n", longID[0], longID[1], longID[2], longID[3], currentShortID);
       tile_longids[tile_shortid-1][0] = longID[0];
@@ -96,10 +99,14 @@ void setup() {
       tile_shortid++;
     }
 
-    //Discovery loop
-    if(strlen(unexplored_tiles) != 1) {
-      char* unexplored_popping = unexplored_tiles + 1;
-      memmove(unexplored_tiles, unexplored_popping, strlen(unexplored_popping) + 1);
+    if(unexplored_tiles[1] != 0) {
+      for(int i=0;i<34;i++){
+        if(i <= 33) {
+          unexplored_tiles[i]=unexplored_tiles[i+1];
+        } else {
+          unexplored_tiles[i]=0;
+        }
+      }
       unexplored_index--;
     } else {
       //Last unexplored tile
