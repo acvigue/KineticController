@@ -9,5 +9,4 @@ extern CRGB leds[34];
 extern int NUM_LEDS;
 extern int speed;
 extern uint8_t currentPaletteIndex;
-
-extern CRGBPalette16 palettes[];
+extern const CRGBPalette16 palettes[];

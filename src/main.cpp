@@ -1,27 +1,42 @@
-/**
- * EFM8 based Kinetic Light Tile controller.
- * Licensed under GNU GPL v3.
- * Aiden Vigue, 2020.
- */
+/*
+       _            _   _   ___            _             _ 
+  /\ /(_)_ __   ___| |_(_) / __\___  _ __ | |_ _ __ ___ | |
+ / //_/ | '_ \ / _ \ __| |/ /  / _ \| '_ \| __| '__/ _ \| |
+/ __ \| | | | |  __/ |_| / /__| (_) | | | | |_| | | (_) | |
+\/  \/|_|_| |_|\___|\__|_\____/\___/|_| |_|\__|_|  \___/|_|
+                                                           
+ESP32 based controller for the EFM8 based Kinetic Light Triangles
+
+Licensed under the GNU GPL v3.0 license.
+
+Copyright 2020, Aiden Vigue
+
+*/
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <EEPROM.h>
 #include "tileprotocol.h"
 #include <FastLED.h>
 #include "globals.h"
 #include "effects.h"
 #include "palettes.h"
 #include <WebServer.h>
-
+#include "secrets.h"
 CRGB leds[34];
+
+//Make a "secrets.h" file with the following
+/*
+#define WIFI_SSID "YOUR NETWORK NAME"
+#define WIFI_PSK "PASSWORD"
+*/
  
 //async 1 wire pins
 #define RXD2 16
 #define TXD2 17 //reverse diode & pullup to 3v3
 #define DEBUG
 
-#define WIFI_SSID "tarheels"
-#define WIFI_PSK "ILuzFJ522F9HaSqEDyU0pjA4aGG2pZJL"
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
 //Max 35 tiles on one controller
 int tile_shortid = 1;
@@ -41,26 +56,27 @@ typedef struct {
 } PatternAndName;
 typedef PatternAndName PatternAndNameList[];
 
-int currentPatternIndex = 0;
+uint8_t currentPatternIndex = 0;
 uint8_t currentPaletteIndex = 0;
 uint8_t gCurrentPaletteNumber = 0;
 int speed = 127;
+bool lightsOn = true;
 CRGBPalette16 gCurrentPalette(CRGB::Black);
 CRGBPalette16 gTargetPalette(gGradientPalettes[0]);
-
+extern const TProgmemRGBGradientPalettePtr gGradientPalettes[];
 CRGBPalette16 IceColors_p = CRGBPalette16(CRGB::Black, CRGB::Blue, CRGB::Aqua, CRGB::White);
-
-uint8_t currentPatternIndex = 2; // Index number of which pattern is current
-uint8_t autoplay = 0;
-
-uint8_t autoplayDuration = 10;
-unsigned long autoPlayTimeout = 0;
+void colorWaves()
+{
+    colorwaves(leds, num_tiles * 3, gCurrentPalette);
+}
 
 PatternAndNameList patterns = {
   {pride, "Pride"},
   {juggle, "Juggle"},
   {bpm, "BPM"},
-
+  {confetti, "Confetti"},
+  {colorWaves, "Color Waves"},
+  {randomPaletteFades, "Random Palette Fades"}
 };
 
 const uint8_t patternCount = ARRAY_SIZE(patterns);
@@ -101,6 +117,8 @@ void setPattern(uint8_t value)
         value = patternCount - 1;
 
     currentPatternIndex = value;
+    EEPROM.write(1, currentPatternIndex);
+    EEPROM.commit();
 }
 
 
@@ -120,6 +138,8 @@ void setPalette(uint8_t value)
         value = paletteCount - 1;
 
     currentPaletteIndex = value;
+    EEPROM.write(8, currentPaletteIndex);
+    EEPROM.commit();
 }
 
 void setPaletteName(String name)
@@ -132,7 +152,28 @@ void setPaletteName(String name)
     }
 }
 
+void loadSettings()
+{
+    currentPatternIndex = EEPROM.read(1);
+    if (currentPatternIndex < 0)
+        currentPatternIndex = 0;
+    else if (currentPatternIndex >= patternCount)
+        currentPatternIndex = patternCount - 1;
+
+    lightsOn = EEPROM.read(5);
+
+    currentPaletteIndex = EEPROM.read(8);
+    if (currentPaletteIndex < 0)
+        currentPaletteIndex = 0;
+    else if (currentPaletteIndex >= paletteCount)
+        currentPaletteIndex = paletteCount - 1;
+    speed = EEPROM.read(9);
+}
+
 void setup() {
+  delay(1000);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 2100);
+  EEPROM.begin(20);
   Serial.begin(115200);
   Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
   Serial2.write(0xFF);
@@ -210,7 +251,6 @@ void setup() {
       //Last unexplored tile
       num_tiles = tile_shortid - 1;
       NUM_LEDS = num_tiles;
-      Serial.println("Discovery complete.");
       break;
     }
   }
@@ -224,34 +264,53 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PSK);
 
   while(WiFi.status() != WL_CONNECTED) {
-    if(WiFi.status() == WL_CONNECT_FAILED) {
-      //connection failed.
-      while(true) {
-        //pulse all tiles red
-        float val = (exp(sin(millis()/2000.0*PI)) - 0.36787944)*108.0;
-        setColor(1, val, 0, 0);
-        delay(15);
-      }
-    }
-
-    //pulse tiles blue
-    float val = (exp(sin(millis()/2000.0*PI)) - 0.36787944)*108.0;
-    setColor(1, 0, 0, val);
-    delay(15);
   }
 
-  setColor(0xFF, 0, 0, 0);
+  Serial.println(WiFi.localIP());
 
-  //Setup web server
-  server.on("/setPattern", []() {
-    String value = webServer.arg("value");
+  setColor(0xFF, 0, 0, 0);
+  server.on("/pattern", []() {
+    String pattern = server.arg("value");
+    setPattern(pattern.toInt());
+    server.send(200, "text/plain", "ACK");
+  });
+  server.on("/palette", []() {
+    String pattern = server.arg("value");
+    setPalette(pattern.toInt());
+    server.send(200, "text/plain", "ACK");
+  });
+  server.on("/power", []() {
+    String pattern = server.arg("value");
+    if(pattern.toInt() == 1) {
+      lightsOn = true;
+    } else {
+      lightsOn = false;
+    }
+    EEPROM.write(5, lightsOn);
+    EEPROM.commit();
+    server.send(200, "text/plain", "ACK");
   });
   server.begin();
 }
 
 void loop() {
   server.handleClient();
-  //patterns[currentPatternIndex].pattern();
+  if(lightsOn) {
+    patterns[currentPatternIndex].pattern();
+  } else {
+    off();
+  }
+  EVERY_N_SECONDS(20) {
+      gCurrentPaletteNumber = addmod8(gCurrentPaletteNumber, 1, gGradientPaletteCount);
+      gTargetPalette = gGradientPalettes[gCurrentPaletteNumber];
+  }
+
+  EVERY_N_MILLISECONDS(40) {
+      // slowly blend the current palette to the next
+      nblendPaletteTowardPalette(gCurrentPalette, gTargetPalette, 8);
+      gHue++;  // slowly cycle the "base color" through the rainbow
+  }
   display();
+  delay(1000 / 120);
 }
 
