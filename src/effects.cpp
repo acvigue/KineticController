@@ -180,7 +180,7 @@ void confetti()
 unsigned long lastFrameTime = 0;
 void display() {
     for(int i = 0; i < num_tiles; i++) {
-            setColor(i+1, leds[i].r, leds[i].g, leds[i].b);
+            setColor(i+1, map(leds[i].r, 0, 255, 0, brightness), map(leds[i].g, 0, 255, 0, brightness), map(leds[i].b, 0, 255, 0, brightness));
         }
 }
 

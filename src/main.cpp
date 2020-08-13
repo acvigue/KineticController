@@ -23,6 +23,8 @@ Copyright 2020, Aiden Vigue
 #include "palettes.h"
 #include <WebServer.h>
 #include "secrets.h"
+#include <Espalexa.h>
+
 CRGB leds[34];
 
 //Make a "secrets.h" file with the following
@@ -35,6 +37,7 @@ CRGB leds[34];
 #define RXD2 16
 #define TXD2 17 //reverse diode & pullup to 3v3
 #define DEBUG
+#define DEVICE_NAME "Picoleaf"
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
@@ -55,7 +58,8 @@ typedef struct {
     String name;
 } PatternAndName;
 typedef PatternAndName PatternAndNameList[];
-
+uint8_t brightness = 127;
+uint8_t lastBrightness;
 uint8_t currentPatternIndex = 0;
 uint8_t currentPaletteIndex = 0;
 uint8_t gCurrentPaletteNumber = 0;
@@ -65,6 +69,12 @@ CRGBPalette16 gCurrentPalette(CRGB::Black);
 CRGBPalette16 gTargetPalette(gGradientPalettes[0]);
 extern const TProgmemRGBGradientPalettePtr gGradientPalettes[];
 CRGBPalette16 IceColors_p = CRGBPalette16(CRGB::Black, CRGB::Blue, CRGB::Aqua, CRGB::White);
+
+Espalexa espalexa;
+EspalexaDevice* AlexaPowerStateDevice;
+
+void AlexaPowerStateCallback(uint8_t b);
+
 void colorWaves()
 {
     colorwaves(leds, num_tiles * 3, gCurrentPalette);
@@ -111,6 +121,15 @@ const String paletteNames[paletteCount] = {
   "Heat",
 };
 
+void setBrightness(uint8_t b, bool fromAlexa = 0) {
+  brightness = b;
+  EEPROM.write(0, b);
+  EEPROM.commit();
+  if(fromAlexa == 0) {
+    AlexaPowerStateDevice->setValue(brightness);
+  }
+}
+
 void setPattern(uint8_t value)
 {
     if (value >= patternCount)
@@ -154,14 +173,13 @@ void setPaletteName(String name)
 
 void loadSettings()
 {
+    brightness = EEPROM.read(0);
     currentPatternIndex = EEPROM.read(1);
     if (currentPatternIndex < 0)
         currentPatternIndex = 0;
     else if (currentPatternIndex >= patternCount)
         currentPatternIndex = patternCount - 1;
-
-    lightsOn = EEPROM.read(5);
-
+    
     currentPaletteIndex = EEPROM.read(8);
     if (currentPaletteIndex < 0)
         currentPaletteIndex = 0;
@@ -172,6 +190,8 @@ void loadSettings()
 
 void setup() {
   delay(1000);
+  AlexaPowerStateDevice = new EspalexaDevice(DEVICE_NAME, AlexaPowerStateCallback);
+  espalexa.addDevice(AlexaPowerStateDevice);
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 2100);
   EEPROM.begin(20);
   Serial.begin(115200);
@@ -191,6 +211,7 @@ void setup() {
   setShortID(longID, tile_shortid);
   unexplored_tiles[0] = tile_shortid;
   tile_shortid++;
+  loadSettings();
   while(true) {
     int currentlyExploring = unexplored_tiles[0];
     setEdge(currentlyExploring, 0x01);
@@ -253,6 +274,8 @@ void setup() {
       NUM_LEDS = num_tiles;
       break;
     }
+    AlexaPowerStateDevice->setState(lightsOn);
+    AlexaPowerStateDevice->setValue(brightness);
   }
 
   //Turn all discovered tiles off.
@@ -282,24 +305,34 @@ void setup() {
   server.on("/power", []() {
     String pattern = server.arg("value");
     if(pattern.toInt() == 1) {
-      lightsOn = true;
+      if(lastBrightness == 0) {
+        lastBrightness == 255;
+      }
+      setBrightness(lastBrightness, false);
     } else {
-      lightsOn = false;
+      lastBrightness = brightness;
+      setBrightness(0, false);
     }
-    EEPROM.write(5, lightsOn);
-    EEPROM.commit();
     server.send(200, "text/plain", "ACK");
   });
-  server.begin();
+  server.on("/brightness", []() {
+    String pattern = server.arg("value");
+    setBrightness(pattern.toInt(), false);
+    server.send(200, "text/plain", "ACK");
+  });
+  server.onNotFound([](){
+    if (!espalexa.handleAlexaApiCall(server.uri(),server.arg(0)))
+    {
+      server.send(404, "text/plain", "Not found");
+    }
+  });
+  espalexa.begin(&server);
 }
 
 void loop() {
-  server.handleClient();
-  if(lightsOn) {
-    patterns[currentPatternIndex].pattern();
-  } else {
-    off();
-  }
+  espalexa.loop();
+  //server.handleClient();
+  patterns[currentPatternIndex].pattern();
   EVERY_N_SECONDS(20) {
       gCurrentPaletteNumber = addmod8(gCurrentPaletteNumber, 1, gGradientPaletteCount);
       gTargetPalette = gGradientPalettes[gCurrentPaletteNumber];
@@ -312,5 +345,9 @@ void loop() {
   }
   display();
   delay(1000 / 120);
+}
+
+void AlexaPowerStateCallback(uint8_t b) {
+  setBrightness(b, true);
 }
 
