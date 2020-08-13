@@ -45,12 +45,12 @@ bool getLongIDOfSelectedTile(char * long_id) {
         waitForResponse(4, recv_buf);
         if(recv_buf[0] == 0x40) {
             tries++;
-            if(tries > 10) {
+            if(tries > 3) {
                 tries = 0;
                 break;
             }
         } else {
-            Serial.printf("Got long ID of tile: %X%X%X%X\n", recv_buf[0], recv_buf[1], recv_buf[2], recv_buf[3]);
+            Serial.printf("Got long ID of tile: %2X%2X%2X%2X\n", recv_buf[0], recv_buf[1], recv_buf[2], recv_buf[3]);
             long_id[0] = recv_buf[0];
             long_id[1] = recv_buf[1];
             long_id[2] = recv_buf[2];
@@ -64,7 +64,7 @@ bool getLongIDOfSelectedTile(char * long_id) {
 void setShortID(char * longid, char shortid) {
     int tries;
     while(true) {
-        Serial.printf("Setting short id of %X%X%X%X to %X\n", longid[0], longid[1], longid[2], longid[3], shortid);
+        Serial.printf("Setting short id of %2X%2X%2X%2X to %X\n", longid[0], longid[1], longid[2], longid[3], shortid);
         Serial2.write(0x01);
         Serial2.write(0xFF);
         Serial2.write(longid[0]);
@@ -88,7 +88,7 @@ void setShortID(char * longid, char shortid) {
 void setEdge(char shortid, char bitmask) {
     int tries;
     while(true) {
-        Serial.printf("Setting tile %X edge bitmask to %X\n", shortid, bitmask);
+        Serial.printf("Setting tile %2X edge bitmask to %2X\n", shortid, bitmask);
         Serial2.write(0x02);
         Serial2.write(shortid);
         Serial2.write(bitmask);
@@ -106,23 +106,29 @@ void setEdge(char shortid, char bitmask) {
 }
 
 void setColor(char tileid, char r, char g, char b) {
-    int tries;
-    while(true) {
-        Serial.printf("Setting tile %X color to #%X%X%X\n", tileid, r,g,b);
-        Serial2.write(0x08);
-        Serial2.write(tileid);
-        Serial2.write(r);
-        Serial2.write(g);
-        Serial2.write(b);
-        Serial2.write(0x0A);
-        waitForResponse(4, recv_buf);
-        if(recv_buf[0] == 0x40) {
-            tries++;
-            if(tries == 3) {
-                return;
-            }
-        } else {
-            break;
-        }
+    if(r == 0x0A) {
+        r = 0x0B;
     }
+    if(g == 0x0A) {
+        g = 0x0B;
+    }
+    if(b == 0x0A) {
+        b = 0x0B;
+    }
+    if(r == 0x80) {
+        r = 0x81;
+    }
+    if(g == 0x80) {
+        g = 0x81;
+    }
+    if(b == 0x80) {
+        b = 0x81;
+    }
+    //Serial.printf("Setting tile %X color to #%2X%2X%2X\n", tileid, r,g,b);
+    Serial2.write(0x08);
+    Serial2.write(tileid);
+    Serial2.write(r);
+    Serial2.write(g);
+    Serial2.write(b);
+    Serial2.write(0x0A);
 }
