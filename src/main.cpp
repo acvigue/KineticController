@@ -21,8 +21,11 @@ Copyright 2020, Aiden Vigue
 #include "globals.h"
 #include "effects.h"
 #include "palettes.h"
-#include <WebServer.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include "secrets.h"
+
+#define ESPALEXA_ASYNC //it is important to define this before #include <Espalexa.h>!
 #include <Espalexa.h>
 
 CRGB leds[34];
@@ -50,7 +53,7 @@ char unexplored_tiles[34];
 int unexplored_index = 1;
 int NUM_LEDS;
 
-WebServer server(80);
+AsyncWebServer server(80);
 typedef void(*Pattern)();
 typedef Pattern PatternList[];
 typedef struct {
@@ -70,6 +73,7 @@ CRGBPalette16 gTargetPalette(gGradientPalettes[0]);
 extern const TProgmemRGBGradientPalettePtr gGradientPalettes[];
 CRGBPalette16 IceColors_p = CRGBPalette16(CRGB::Black, CRGB::Blue, CRGB::Aqua, CRGB::White);
 
+TaskHandle_t WebServerTask;
 Espalexa espalexa;
 EspalexaDevice* AlexaPowerStateDevice;
 
@@ -188,6 +192,13 @@ void loadSettings()
     speed = EEPROM.read(9);
 }
 
+void WebTask( void * pvParameters ){
+  for(;;){
+    espalexa.loop();
+    delay(1);
+  } 
+}
+
 void setup() {
   delay(1000);
   AlexaPowerStateDevice = new EspalexaDevice(DEVICE_NAME, AlexaPowerStateCallback);
@@ -292,18 +303,18 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   setColor(0xFF, 0, 0, 0);
-  server.on("/pattern", []() {
-    String pattern = server.arg("value");
+  server.on("/pattern", [](AsyncWebServerRequest *request) {
+    String pattern = request->arg("value");
     setPattern(pattern.toInt());
-    server.send(200, "text/plain", "ACK");
+    request->send(200, "text/plain", "ACK");
   });
-  server.on("/palette", []() {
-    String pattern = server.arg("value");
+  server.on("/palette", [](AsyncWebServerRequest *request) {
+    String pattern = request->arg("value");
     setPalette(pattern.toInt());
-    server.send(200, "text/plain", "ACK");
+    request->send(200, "text/plain", "ACK");
   });
-  server.on("/power", []() {
-    String pattern = server.arg("value");
+  server.on("/power", [](AsyncWebServerRequest *request) {
+    String pattern = request->arg("value");
     if(pattern.toInt() == 1) {
       if(lastBrightness == 0) {
         lastBrightness == 255;
@@ -313,26 +324,36 @@ void setup() {
       lastBrightness = brightness;
       setBrightness(0, false);
     }
-    server.send(200, "text/plain", "ACK");
+    request->send(200, "text/plain", "ACK");
   });
-  server.on("/brightness", []() {
-    String pattern = server.arg("value");
+  server.on("/brightness", [](AsyncWebServerRequest *request) {
+    String pattern = request->arg("value");
     setBrightness(pattern.toInt(), false);
-    server.send(200, "text/plain", "ACK");
+    request->send(200, "text/plain", "ACK");
   });
-  server.onNotFound([](){
-    if (!espalexa.handleAlexaApiCall(server.uri(),server.arg(0)))
+  server.onNotFound([](AsyncWebServerRequest *request){
+    if (!espalexa.handleAlexaApiCall(request)) //if you don't know the URI, ask espalexa whether it is an Alexa control request
     {
-      server.send(404, "text/plain", "Not found");
+      //whatever you want to do with 404s
+      request->send(404, "text/plain", "Not found");
     }
   });
   espalexa.begin(&server);
+  xTaskCreatePinnedToCore(
+                    WebTask,   /* Task function. */
+                    "WebTask",     /* name of task. */
+                    10000,       /* Stack size of task */
+                    NULL,        /* parameter of the task */
+                    1,           /* priority of the task */
+                    &WebServerTask,      /* Task handle to keep track of created task */
+                    0);
 }
 
 void loop() {
-  espalexa.loop();
-  //server.handleClient();
-  patterns[currentPatternIndex].pattern();
+  EVERY_N_MILLISECONDS(1000 / 120) {
+    patterns[currentPatternIndex].pattern();
+    display();
+  }
   EVERY_N_SECONDS(20) {
       gCurrentPaletteNumber = addmod8(gCurrentPaletteNumber, 1, gGradientPaletteCount);
       gTargetPalette = gGradientPalettes[gCurrentPaletteNumber];
@@ -343,8 +364,6 @@ void loop() {
       nblendPaletteTowardPalette(gCurrentPalette, gTargetPalette, 8);
       gHue++;  // slowly cycle the "base color" through the rainbow
   }
-  display();
-  delay(1000 / 120);
 }
 
 void AlexaPowerStateCallback(uint8_t b) {
