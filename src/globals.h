@@ -1,4 +1,6 @@
 #include "FastLED.h"
+#include <ArduinoWebsockets.h>
+using namespace websockets;
 
 extern int tile_shortid;
 extern int num_tiles;
@@ -11,3 +13,4 @@ extern int speed;
 extern uint8_t brightness;
 extern uint8_t currentPaletteIndex;
 extern const CRGBPalette16 palettes[];
+extern WebsocketsClient client;

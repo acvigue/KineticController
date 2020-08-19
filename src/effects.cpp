@@ -1,6 +1,7 @@
 #include "globals.h"
 #include "FastLED.h"
 #include "tileprotocol.h"
+#include <ArduinoWebsockets.h>
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 TBlendType    blendType;
 TBlendType currentBlending; // Current blending type
@@ -60,7 +61,7 @@ void pride()
   sHue16 += deltams * beatsin88( 400, 5,9);
   uint16_t brightnesstheta16 = sPseudotime;
   
-  for( uint16_t i = 0; i < num_tiles; i++) {
+  for( uint16_t i = 0 ; i < num_tiles; i++) {
     hue16 += hueinc16;
     uint8_t hue8 = hue16 / 256;
 
@@ -73,7 +74,10 @@ void pride()
     
     CRGB newcolor = CHSV( hue8, sat8, bri8);
     
-    nblend( leds[i], newcolor, 64);
+    uint16_t pixelnumber = i;
+    pixelnumber = (num_tiles-1) - pixelnumber;
+    
+    nblend( leds[pixelnumber], newcolor, 64);
   }
 }
 
@@ -154,6 +158,11 @@ void rainbow()
     }
 }
 
+void rainbowSolid()
+{
+    fill_solid(leds, NUM_LEDS, CHSV(gHue, 255, 255));
+}
+
 void bpm()
 {
     // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
@@ -188,6 +197,9 @@ void solidColor(CRGB color) {
   for(int i = 0; i < num_tiles; i++) {
     leds[i] = color;
   }
+}
+
+void visualizer() {
 }
 
 void off() {

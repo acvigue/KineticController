@@ -23,7 +23,10 @@ Copyright 2020, Aiden Vigue
 #include "palettes.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <ArduinoWebsockets.h>
 #include "secrets.h"
+
+using namespace websockets;
 
 #define ESPALEXA_ASYNC //it is important to define this before #include <Espalexa.h>!
 #include <Espalexa.h>
@@ -76,6 +79,7 @@ CRGBPalette16 IceColors_p = CRGBPalette16(CRGB::Black, CRGB::Blue, CRGB::Aqua, C
 TaskHandle_t WebServerTask;
 Espalexa espalexa;
 EspalexaDevice* AlexaPowerStateDevice;
+WebsocketsClient client;
 
 void AlexaPowerStateCallback(uint8_t b);
 
@@ -90,7 +94,10 @@ PatternAndNameList patterns = {
   {bpm, "BPM"},
   {confetti, "Confetti"},
   {colorWaves, "Color Waves"},
-  {randomPaletteFades, "Random Palette Fades"}
+  {rainbow, "Rainbow"},
+  {rainbowSolid, "Solid Rainbow"},
+  {randomPaletteFades, "Random Palette Fades"},
+  {visualizer, "Spotify Visualizer (BETA)"}
 };
 
 const uint8_t patternCount = ARRAY_SIZE(patterns);
@@ -195,8 +202,18 @@ void loadSettings()
 void WebTask( void * pvParameters ){
   for(;;){
     espalexa.loop();
+    //client.poll();
     delay(1);
   } 
+}
+
+void onMessageCallback(WebsocketsMessage message) {
+    if(strstr(message.data().c_str(), "beat") != NULL) {
+      Serial.println("Beat!");
+    }
+    if(strstr(message.data().c_str(), "tatum") != NULL) {
+      Serial.println("Tatum!");
+    }
 }
 
 void setup() {
@@ -339,6 +356,9 @@ void setup() {
     }
   });
   espalexa.begin(&server);
+  client.connect("ws://192.168.0.4:8011");
+  client.onMessage(onMessageCallback);
+  client.ping();
   xTaskCreatePinnedToCore(
                     WebTask,   /* Task function. */
                     "WebTask",     /* name of task. */

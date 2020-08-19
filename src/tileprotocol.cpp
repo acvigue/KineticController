@@ -105,30 +105,73 @@ void setEdge(char shortid, char bitmask) {
     }
 }
 
-void setColor(char tileid, char r, char g, char b) {
-    if(r == 0x0A) {
-        r = 0x0B;
+void setColor(char tileid, char r1, char g1, char b1, char r2, char g2, char b2, char r3, char g3, char b3) {
+    if(r1 == 0x0A) {
+        r1 = 0x0B;
     }
-    if(g == 0x0A) {
-        g = 0x0B;
+    if(g1 == 0x0A) {
+        g1 = 0x0B;
     }
-    if(b == 0x0A) {
-        b = 0x0B;
+    if(b1 == 0x0A) {
+        b1 = 0x0B;
     }
-    if(r == 0x80) {
-        r = 0x81;
+    if(r1 == 0x80) {
+        r1 = 0x81;
     }
-    if(g == 0x80) {
-        g = 0x81;
+    if(g1 == 0x80) {
+        g1 = 0x81;
     }
-    if(b == 0x80) {
-        b = 0x81;
+    if(b1 == 0x80) {
+        b1 = 0x81;
     }
+    if(r2 == 0x0A) {
+        r2 = 0x0B;
+    }
+    if(g2 == 0x0A) {
+        g2 = 0x0B;
+    }
+    if(b2 == 0x0A) {
+        b2 = 0x0B;
+    }
+    if(r2 == 0x80) {
+        r2 = 0x81;
+    }
+    if(g2 == 0x80) {
+        g2 = 0x81;
+    }
+    if(b2 == 0x80) {
+        b2 = 0x81;
+    }
+    if(r3 == 0x0A) {
+        r3 = 0x0B;
+    }
+    if(g3 == 0x0A) {
+        g3 = 0x0B;
+    }
+    if(b3 == 0x0A) {
+        b3 = 0x0B;
+    }
+    if(r3 == 0x80) {
+        r3 = 0x81;
+    }
+    if(g3 == 0x80) {
+        g3 = 0x81;
+    }
+    if(b3 == 0x80) {
+        b3 = 0x81;
+    }
+    
     //Serial.printf("Setting tile %X color to #%2X%2X%2X\n", tileid, r,g,b);
     Serial2.write(0x08);
     Serial2.write(tileid);
-    Serial2.write(r);
-    Serial2.write(g);
-    Serial2.write(b);
+    Serial2.write(r1);
+    Serial2.write(g1);
+    Serial2.write(b1);
+    Serial2.write(r2);
+    Serial2.write(g2);
+    Serial2.write(b2);
+    Serial2.write(r3);
+    Serial2.write(g3);
+    Serial2.write(b3);
     Serial2.write(0x0A);
 }

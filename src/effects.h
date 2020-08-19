@@ -1,7 +1,9 @@
 void pride();
 void juggle();
 void rainbow();
+void rainbowSolid();
 void bpm();
+void visualizer();
 void heatMap(CRGBPalette16 palette, bool up);
 void confetti();
 void colorwaves(CRGB* ledarray, uint16_t numleds, CRGBPalette16& palette);
